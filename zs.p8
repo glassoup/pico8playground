@@ -215,8 +215,6 @@ function player_update()
  player.y-=player.dy
  player.x+=player.dx
  
- 
- 
 --	_debugger_print("spd:"..sqrt(player.dy^2+player.dx^2))
 --	_debugger_print("sht:"..player.shoot_delay_cur)
 --	_debugger_print("rtt:"..rot_target)
@@ -239,12 +237,11 @@ function player_lock()
  function isclockwise(v1,v2)
   return -v1.x*v2.y+v1.y*v2.x>0
  end
- function isinrange(v, r2)
-  return v.x*v.x+v.y*v.y<=r2
+ function isinrange(v,r)
+  return abs(v.x)<r and abs(v.y)<r and v.x^2+v.y^2<=r^2
  end
  local range=80
  local spread=0.12
- local r2=range^2
  local sec_end={
   x=sin(player.rot-spread)*range,
   y=-cos(player.rot-spread)*range
@@ -259,7 +256,7 @@ function player_lock()
 	   x=enemy.x-player.x,
 	   y=enemy.y-player.y
 	  }
-	  if (not isclockwise(sec_start,relpoint)) and isclockwise(sec_end,relpoint) and isinrange(relpoint,r2) then
+	  if (not isclockwise(sec_start,relpoint)) and isclockwise(sec_end,relpoint) and isinrange(relpoint,range) then
 	  	player.lockx=enemy.x
 	  	player.locky=enemy.y
 	  	player.locked=true
