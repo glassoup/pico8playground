@@ -378,7 +378,7 @@ end
 function enemy_damage(e,d)
  e.health-=d
  if e.health <= 0 then
-  particle_create(e.x,e.y,5,e.r,e.r*2)
+  particle_create(e.x,e.y,6,e.r,e.r*2)
   particle_create(e.x,e.y,4,e.r,e.r*2)
   particle_create(e.x,e.y,9,e.r,e.r*2)
   particle_create(e.x,e.y,0,e.r,e.r)
