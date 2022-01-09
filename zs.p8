@@ -11,8 +11,8 @@ function _init()
  player={
   rot=0,
   drot=0.0165,
-  x=192,
-  y=192, 
+  x=0,
+  y=0, 
   h=8,
   dx=0,
   dy=0,
@@ -41,26 +41,41 @@ function _init()
   energy_max=100,
   bullets={},
   health=50,
-  shield=25
+  health_max=50,
+  shield=25,
+  shield_max=25,
+  shield_nocharge=0,
+  shield_penalty=4,
+  shield_penalty_min=4,
+  shield_penalty_max=10,
+  shield_fullcharge=false,
+  shield_nocharge_amt=30,
  }
  
  enemies={
   {
    x=59,
-   y=59
+   y=59,
+   r=4,
+   health=50,
+   health_max=100
   },
   {
    x=128,
-   y=128
+   y=128,
+   r=5,
+   health=100,
+   health_max=100
   }
  }
  
+ arena_cd=0
  particles={}
  
  -- arena
  arena_lines={}
  for i=1,20 do
-  add(arena_lines,{rnd(384),rnd(384),rnd(384),rnd(384)})
+  add(arena_lines,{rnd(362)-181,rnd(362)-181,rnd(362)-181,rnd(362)-181})
  end
  
  -- camera
@@ -83,7 +98,6 @@ end
 
 function _draw()
  cls()
- _draw_debugger()
  arena_draw()
  particle_draw()
  player_draw()
@@ -91,6 +105,7 @@ function _draw()
  enemy_draw()
  player_bullet_draw()
  enemy_bullet_draw()
+ _draw_debugger()
 end
 -->8
 -- player
@@ -124,10 +139,10 @@ function player_update()
     player.boost_hold=false
     player.boost_invul_cur=player.boost_invul
     sfx(1)
-    particle_create(player_particlex,player_particley,8,5,10)
     particle_create(player_particlex,player_particley,9,5,10)
     particle_create(player_particlex,player_particley,10,5,10)
-  
+    particle_create(player_particlex,player_particley,8,5,10)
+
     player_energy_nocharge(20)
    end 
   end
@@ -172,8 +187,8 @@ function player_update()
 	   player.dx+=player.thrust_cur*sin(dir)
 	   player.dy+=player.thrust_cur*cos(dir)
     particle_create(player_particlex,player_particley,8,2,2)
-    particle_create(player_particlex,player_particley,9,3,3)
-    particle_create(player_particlex,player_particley,10,3,3)
+    particle_create(player_particlex,player_particley,9,2,3)
+    particle_create(player_particlex,player_particley,10,2,3)
    end
    if not player.thrust_on then
     sfx(3)
@@ -218,16 +233,27 @@ function player_update()
   player.locked=false
  end
  
- --bullets
- for bullet in all(player.bullets) do
+ -- bullets
+ for b in all(player.bullets) do
   local speed=5
-  particle_create(bullet.x,bullet.y,7,2,1)
-  bullet.x+=sin(bullet.rot)*speed
-  bullet.y-=cos(bullet.rot)*speed
+  particle_create(b.x,b.y,7,2,1)
+  b.x+=sin(b.rot)*speed
+  b.y-=cos(b.rot)*speed
   --todo check for collusion
+  for e in all(enemies) do
+   local relpoint={
+	   x=b.x-e.x,
+	   y=b.y-e.y
+	  }
+	  if isinrange(relpoint,e.r) then
+	   particle_create(b.x,b.y,7,5,1)
+	   sfx(5)
+	   del(player.bullets, b)
+	   enemy_damage(e,2)
+	  end
+	 end
  end
- 
- 
+
  --misc
  if player.boost_nocharge <= 0 then
   player.energy=min(player.energy+3,player.energy_max)
@@ -238,7 +264,35 @@ function player_update()
  player.x+=player.dx
  
  -- arena damage
- 
+ if not isinrange(player, 181) then
+  if player.boost_invul_cur <= 0 and arena_cd <=0 then
+	  player_damage(3)
+	  arena_cd=25
+	  sfx(7)
+  end
+ end
+ arena_cd=max(arena_cd-1,0)
+  
+ --shield
+ if player.shield_nocharge <=0 then
+  if player.shield_fullcharge then
+   player.shield_fullcharge=false
+   player.shield=player.shield_max
+  else
+   player.shield=min(player.shield+0.5,player.shield_max)
+  end
+ end
+ player.shield_nocharge=max(player.shield_nocharge-1,0)
+ player.shield_penalty=max(player.shield_penalty-0.001,player.shield_penalty_min)
+
+
+
+ _debugger_print("in arena:"..tostr(isinrange(player, 181)))
+
+ _debugger_print("x:"..player.x)
+	_debugger_print("y:"..player.y)
+	_debugger_print("shield:"..player.shield)
+	_debugger_print("shield_cd:"..player.shield_nocharge)
 --	_debugger_print("spd:"..sqrt(player.dy^2+player.dx^2))
 --	_debugger_print("sht:"..player.shoot_delay_cur)
 --	_debugger_print("rtt:"..rot_target)
@@ -257,6 +311,10 @@ function player_energy_nocharge(consumed)
  end
 end
 
+function isinrange(v,r)
+ local midstep = r^2-v.y^2
+ return abs(v.x)<r and abs(v.y)<r and midstep>0 and midstep-v.x^2>=0
+end
 function player_lock()
  function isclockwise(v1,v2)
   return -v1.x*v2.y+v1.y*v2.x>0
@@ -298,10 +356,36 @@ function player_shoot()
  }) 
 end
  
-function player_damaged(d)
- 
+function player_damage(d)
+ if player.shield>=d then
+  player.shield-=d
+ else
+  d-=ceil(player.shield)
+  player.shield=0
+  player.health-=d
+ end
+ if not player.shield_fullcharge then
+	 if player.shield <= 0 then
+	  player.shield_nocharge=player.shield_nocharge_amt*player.shield_penalty
+	  player.shield_penalty=min(player.shield_penalty+1,player.shield_penalty_max)
+	  player.shield_fullcharge=true
+	 else
+	  player.shield_nocharge=player.shield_nocharge_amt
+	 end
+ end
 end
 
+function enemy_damage(e,d)
+ e.health-=d
+ if e.health <= 0 then
+  particle_create(e.x,e.y,5,e.r,e.r*2)
+  particle_create(e.x,e.y,4,e.r,e.r*2)
+  particle_create(e.x,e.y,9,e.r,e.r*2)
+  particle_create(e.x,e.y,0,e.r,e.r)
+  del(enemies,e)
+  sfx(6)
+ end
+end
 
 function particle_create(x,y,col,amt,size)
  local area=amt^2
@@ -377,31 +461,37 @@ function player_draw()
  line(
 	 player.x+sinrl*4+sinr*(f-4),
 	 player.y-cosrl*4-cosr*(f-4),
-	 player.x-sinrr*4-sinr*(b+4),
-	 player.y+cosrr*4+cosr*(b+4),
+	 player.x-sinrr*4-sinr*(b+3),
+	 player.y+cosrr*4+cosr*(b+3),
 	 player_color()
  )
  line(
-	 player.x+sinrl*2+sinr*(f-2),
-	 player.y-cosrl*2-cosr*(f-2),
-	 player.x-sinrr*2-sinr*(b+2),
-	 player.y+cosrr*2+cosr*(b+2),
+	 player.x+sinrl*2+sinr*(f-1),
+	 player.y-cosrl*2-cosr*(f-1),
+	 player.x-sinrr*2-sinr*(b+1),
+	 player.y+cosrr*2+cosr*(b+1),
 	 player_color()
  )
   line(
 	 player.x+sinrr*4+sinr*(f-4),
 	 player.y-cosrr*4-cosr*(f-4),
-	 player.x-sinrl*4-sinr*(b+4),
-	 player.y+cosrl*4+cosr*(b+4),
+	 player.x-sinrl*4-sinr*(b+3),
+	 player.y+cosrl*4+cosr*(b+3),
 	 player_color()
  )
  line(
-	 player.x+sinrr*2+sinr*(f-2),
-	 player.y-cosrr*2-cosr*(f-2),
-	 player.x-sinrl*2-sinr*(b+2),
-	 player.y+cosrl*2+cosr*(b+2),
+	 player.x+sinrr*2+sinr*(f-1),
+	 player.y-cosrr*2-cosr*(f-1),
+	 player.x-sinrl*2-sinr*(b+1),
+	 player.y+cosrl*2+cosr*(b+1),
 	 player_color()
  )
+ 
+ -- health
+ rectfill(player.x-player.h,player.y-player.h,player.x-player.h+player.health\5,player.y-player.h-0,11)
+ if player.shield >0 then
+ 	rectfill(player.x-player.h+(player.health_max\5),player.y-player.h,player.x-player.h+(player.health_max\5)+player.shield\5,player.y-player.h-0,12)
+ end
 end
 
 function player_color()
@@ -441,7 +531,8 @@ end
 
 function enemy_draw()
  for enemy in all(enemies) do
-  circfill(enemy.x, enemy.y,3,4)
+  circfill(enemy.x, enemy.y,enemy.r,4)
+  rect(enemy.x-enemy.r,enemy.y-enemy.r-2,enemy.x+ceil((enemy.r*2)/enemy.health_max*enemy.health)-enemy.r,enemy.y-enemy.r-2,11)
  end
 end
 
@@ -455,8 +546,8 @@ function enemy_bullet_draw()
 end
 
 function arena_draw()
- circfill(192,192,192,1)
- circfill(191,191,189,5)
+ circfill(0,0,181,1)
+ circfill(-1,-1,178,5)
  for l in all(arena_lines) do
   line(l[1],l[2],l[3],l[4],0)
  end
@@ -724,7 +815,10 @@ __label__
 
 __sfx__
 c60100000b6200d62011620166201c63022640286402d65031650346503565035650356503465033650336503265031640306403064030630306302f6302f6302f6303063030630316303163031630306302f630
-4802000032650346703667037660376503665033640326402f6402a63026630226301c6301862015620136200f6200d6200b6200a620086200762006610056100461003610026100261001610006100061000610
+4802000032651346713667137661376513665133641326412f6412a63126631226311c6311862115621136210f6210d6210b6210a621086210762106611056110461103611026110261101611006110061100611
 d601000012620106200e6200d6200c6200b6200a62009620076200662006620056200462004620036200362003620036200362003620036200462004620046200662008620096200a6200b6200c6200d6200e620
-00010000075100e610136101051012510096100f6101f500216002c60008600076000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-5a0100003a4513845134451326212f1512d1512c1512b151287512875126751267510000100001000010000100001000010000100001000010000100001000010000100001000010000100001000010000100001
+01010000075100e610136101051012510096100f6101f500216002c60008600076000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5a0100003a4413844134441326212f1412d1412c1412b141287412874126741267410000100001000010000100001000010000100001000010000100001000010000100001000010000100001000010000100001
+930100003064010630006000060002600016000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+9204000029660236601a660136600e6600c6600a66009660076600666005650046500365002650026400164000640006300063000630006300062000620006200062000610006100061000000000000000000000
+4a020000276502b65019650146501c6501d1501b6501015017650166500a150136500715011650106500e6500c650003000030000000000000000000000000000000000000000000000000000000000000000000
