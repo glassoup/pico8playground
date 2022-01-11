@@ -10,60 +10,61 @@ function _init()
  --vars
  player={
   rot=0,
-  drot=0.0165,
   x=0,
-  y=0, 
-  h=8,
+  y=0,
   dx=0,
   dy=0,
-  lockx=59,
-  locky=59,
-  locked=false,
-  shooting=false,
-  shoot_delay=4,
-  shoot_delay_cur=0,
-  friction=0.9,
-  friction_locked=0.82,
-  boost_nocharge=0,
-  boost_nocharge_amt=30,
-  boost_hold=false,
-  boost_invul=15,
-  boost_invul_cur=0,
-  boost_burst=8.5,
-  boost_amt=0.15,
-  boost_cur=0,
-  boost_max=0.8,
-  thrust_amt=0.1,
-  thrust_cur=0,
-  thrust_max=0.5,
-  thrust_on=false,
-  energy=100,
-  energy_max=100,
-  bullets={},
-  health=50,
-  health_max=50,
-  shield=25,
-  shield_max=25,
-  shield_nocharge=0,
-  shield_penalty=4,
-  shield_penalty_min=4,
-  shield_penalty_max=10,
-  shield_fullcharge=false,
-  shield_nocharge_amt=30,
-  special_1_charge=20,
-  special_2_charge=33,
-  special_3_charge=50,
-  special_1_charge_max=20,
-  special_2_charge_max=33,
-  special_3_charge_max=50,
-  special_1=0,
-  special_2=0,
-  special_3=0,
-  special_1_max=3,
-  special_2_max=2,
-  special_3_max=2,
  }
- 
+ -- player
+drot=0.0165
+lockx=59
+locky=59
+player_locked=false
+player_shooting=false
+shoot_delay=4
+shoot_delay_cur=0
+friction=0.9
+friction_locked=0.82
+boost_nocharge=0
+boost_nocharge_amt=30
+boost_hold=false
+boost_invul=15
+boost_invul_cur=0
+boost_burst=8.5
+boost_amt=0.15
+boost_cur=0
+boost_max=0.8
+thrust_amt=0.1
+thrust_cur=0
+thrust_max=0.5
+thrust_on=false
+energy=100
+energy_max=100
+player_bullets={}
+health=50
+health_max=50
+shield=25
+shield_max=25
+shield_nocharge=0
+shield_penalty=4
+shield_penalty_min=4
+shield_penalty_max=10
+shield_fullcharge=false
+shield_nocharge_amt=30
+special_1_charge=0
+special_2_charge=0
+special_3_charge=0
+special_1_charge_max=20
+special_2_charge_max=30
+special_3_charge_max=40
+special_1=0
+special_2=0
+special_3=0
+special_1_max=3
+special_2_max=2
+special_3_max=2
+special_hold_dur=0
+
  enemies={
   {
    x=59,
@@ -103,8 +104,8 @@ function _update60()
  player_update()
  
  --camera
- cam_x=player.x-64+(player.h/2)
- cam_y=player.y-64+(player.h/2)
+ cam_x=player.x-64+(8/2)
+ cam_y=player.y-64+(8/2)
  camera(cam_x,cam_y)
 end
 
@@ -127,29 +128,29 @@ function player_update()
  local rot_diff=(rot_target-player.rot+0.5)%1-0.5	
  local player_particlex=player.x-sin(player.rot)*5
  local player_particley=player.y+cos(player.rot)*5
- 
- if player.locked then
-	 player.dy*=player.friction_locked
-	 player.dx*=player.friction_locked
-  player.rot=0.25+atan2(player.x-player.lockx, player.y-player.locky)
+
+ if player_locked then
+	 player.dy*=friction_locked
+	 player.dx*=friction_locked
+  player.rot=0.25+atan2(player.x-lockx, player.y-locky)
  else
- 	player.dy*=player.friction
- 	player.dx*=player.friction
+ 	player.dy*=friction
+ 	player.dx*=friction
  end
  
  -- boosting
- if input_boostp() or (player.boost_hold and input_boost()) then
+ if input_boostp() or (boost_hold and input_boost()) then
   if rot_target == 0 then
    player.dx=0
    player.dy=0
    sfx(0)
-   player.boost_hold=true
+   boost_hold=true
   else
-   if player.energy >= 20 then
-    player.dx=sin(rot_target)*player.boost_burst
-    player.dy=cos(rot_target)*player.boost_burst
-    player.boost_hold=false
-    player.boost_invul_cur=player.boost_invul
+   if energy >= 20 then
+    player.dx=sin(rot_target)*boost_burst
+    player.dy=cos(rot_target)*boost_burst
+    boost_hold=false
+    boost_invul_cur=boost_invul
     sfx(1)
     particle_create(player_particlex,player_particley,9,5,10)
     particle_create(player_particlex,player_particley,10,5,10)
@@ -165,72 +166,72 @@ function player_update()
  
  if input_moving() then
   -- rotation
-  if not player.locked then
-   if abs(rot_diff) < player.drot then
+  if not player_locked then
+   if abs(rot_diff) < drot then
 		  player.rot=rot_target
 		 elseif rot_diff > 0 then
-		  player.rot+=player.drot
+		  player.rot+=drot
 		 elseif rot_diff < 0 then
-		  player.rot-=player.drot
+		  player.rot-=drot
 		 end
 	 	player.rot=player.rot%1
 	 end
 	   
 	 -- thrust
-  if (abs(rot_diff) < 0.175) or player.locked then
+  if (abs(rot_diff) < 0.175) or player_locked then
    local dir = player.rot
-   if (player.locked) dir=rot_target
+   if (player_locked) dir=rot_target
     
-   if input_boost() and player.energy>0 then
-    player.boost_cur+=player.boost_amt
-  	 player.boost_cur=min(player.boost_max,player.boost_cur)
-  	 player.dx+=player.boost_cur*sin(dir)
-  	 player.dy+=player.boost_cur*cos(dir)
+   if input_boost() and energy>0 then
+    boost_cur+=boost_amt
+  	 boost_cur=min(boost_max,boost_cur)
+  	 player.dx+=boost_cur*sin(dir)
+  	 player.dy+=boost_cur*cos(dir)
     particle_create(player_particlex,player_particley,8,3,4)
     particle_create(player_particlex,player_particley,9,3,4)
     particle_create(player_particlex,player_particley,10,3,4)
     sfx(2)
-    if not (player.boost_invul_cur > 0) then
+    if not (boost_invul_cur > 0) then
      player_energy_nocharge(1)
     end
    else
-	   player.thrust_cur+=player.thrust_amt
-	   player.thrust_cur=min(player.thrust_max,player.thrust_cur)
-	   player.dx+=player.thrust_cur*sin(dir)
-	   player.dy+=player.thrust_cur*cos(dir)
+	   thrust_cur+=thrust_amt
+	   thrust_cur=min(thrust_max,thrust_cur)
+	   player.dx+=thrust_cur*sin(dir)
+	   player.dy+=thrust_cur*cos(dir)
     particle_create(player_particlex,player_particley,8,2,2)
     particle_create(player_particlex,player_particley,9,2,3)
     particle_create(player_particlex,player_particley,10,2,3)
    end
-   if not player.thrust_on then
+   if not thrust_on then
     sfx(3)
-    player.thrust_on=true
+    thrust_on=true
    end
   else
-   player.thrust_on=false
+   thrust_on=false
   end
 
   
 
  else
   -- not pressing directional keys
-  player.thrust_cur=0
-  player.boost_cur=0
-  player.thrust_on=false
+  thrust_cur=0
+  boost_cur=0
+  thrust_on=false
  end
  	
  
  -- shooting
  if input_shoot() then
   if input_shootp() then
-   player.shooting=not player.shooting
+   player_shooting=not player_shooting
   end
-  if player.shooting then
-   if player.energy>=2 then
+  if player_shooting then
+   if energy>=2 then
     player_lock()
-    player.shoot_delay_cur+=1
-	   player.shoot_delay_cur=player.shoot_delay_cur%player.shoot_delay  
-    if player.shoot_delay_cur==0 then
+    shoot_delay_cur+=1
+	   shoot_delay_cur=shoot_delay_cur%shoot_delay  
+    if shoot_delay_cur==0 then
 	    player_shoot()
 	    sfx(4)
 	    player_energy_nocharge(2)
@@ -238,49 +239,53 @@ function player_update()
    end
   else
    player_lock()
-   player.shoot_delay_cur=0
+   shoot_delay_cur=0
+   
+   -- special
+   special_hold_dur+=1
+   
   end
  else
-  player.shoot_delay_cur=0
-  player.locked=false
+  shoot_delay_cur=0
+  player_locked=false
  end
  
  -- bullets
- for b in all(player.bullets) do
-  local speed=5
-  particle_create(b.x,b.y,7,2,1)
-  b.x+=sin(b.rot)*speed
-  b.y-=cos(b.rot)*speed
-  if b.x < -350 or b.x > 350 or  b.y < -350 or b.y > 350 then
-   del(player.bullets,b)
+ for b in all(player_bullets) do
+  b.x+=sin(b.rot)*5
+  b.y-=cos(b.rot)*5
+  local x,y=b.x,b.y
+  particle_create(x,y,7,2,1)
+  if x < -350 or x > 350 or  y < -350 or y > 350 then
+   del(player_bullets,b)
   end
   for e in all(enemies) do
    local relpoint={
-	   x=b.x-e.x,
-	   y=b.y-e.y
+	   x=x-e.x,
+	   y=y-e.y
 	  }
 	  if isinrange(relpoint,e.r) then
-	   particle_create(b.x,b.y,7,5,1)
+	   particle_create(x,y,7,5,1)
 	   sfx(5)
-	   del(player.bullets, b)
+	   del(player_bullets, b)
 	   enemy_damage(e,2)
-	   player_add_special(2)
+	   player_add_special(0.5)
 	  end
 	 end
  end
 
  --misc
- if player.boost_nocharge <= 0 then
-  player.energy=min(player.energy+3,player.energy_max)
+ if boost_nocharge <= 0 then
+  energy=min(energy+3,energy_max)
  end
- player.boost_nocharge=max(player.boost_nocharge-1,0)
- player.boost_invul_cur=max(player.boost_invul_cur-1,0)
+ boost_nocharge=max(boost_nocharge-1,0)
+ boost_invul_cur=max(boost_invul_cur-1,0)
  player.y-=player.dy
  player.x+=player.dx
  
  -- arena damage
  if not isinrange(player, 181) then
-  if player.boost_invul_cur <= 0 and arena_cd <=0 then
+  if boost_invul_cur <= 0 and arena_cd <=0 then
 	  player_damage(3)
 	  arena_cd=25
 	  sfx(7,1)
@@ -289,27 +294,26 @@ function player_update()
  arena_cd=max(arena_cd-1,0)
   
  --shield
- if player.shield_nocharge <=0 then
-  if player.shield_fullcharge then
-   player.shield_fullcharge=false
-   player.shield=player.shield_max
+ if shield_nocharge <=0 then
+  if shield_fullcharge then
+   shield_fullcharge=false
+   shield=shield_max
   else
-   player.shield=min(player.shield+0.5,player.shield_max)
+   shield=min(shield+0.5,shield_max)
   end
  end
- player.shield_nocharge=max(player.shield_nocharge-1,0)
- player.shield_penalty=max(player.shield_penalty-0.001,player.shield_penalty_min)
+ shield_nocharge=max(shield_nocharge-1,0)
+ shield_penalty=max(shield_penalty-0.001,shield_penalty_min)
 
 
 
- _debugger_print("in arena:"..tostr(isinrange(player, 181)))
-
- _debugger_print("x:"..player.x)
-	_debugger_print("y:"..player.y)
-	_debugger_print("shield:"..player.shield)
-	_debugger_print("shield_cd:"..player.shield_nocharge)
+-- _debugger_print("in arena:"..tostr(isinrange(player, 181)))
+-- _debugger_print("x:"..player.x)
+--	_debugger_print("y:"..player.y)
+--	_debugger_print("shield:"..shield)
+--	_debugger_print("shield_cd:"..shield_nocharge)
 --	_debugger_print("spd:"..sqrt(player.dy^2+player.dx^2))
---	_debugger_print("sht:"..player.shoot_delay_cur)
+--	_debugger_print("sht:"..shoot_delay_cur)
 --	_debugger_print("rtt:"..rot_target)
 -- _debugger_print("rot:"..player.rot)
 
@@ -318,11 +322,11 @@ end
 
 
 function player_energy_nocharge(consumed)
- player.energy-=consumed
- if player.energy <= 0 then
-  player.boost_nocharge=player.boost_nocharge_amt*2
+ energy-=consumed
+ if energy <= 0 then
+  boost_nocharge=boost_nocharge_amt*2
  else
-  player.boost_nocharge=player.boost_nocharge_amt
+  boost_nocharge=boost_nocharge_amt
  end
 end
 
@@ -334,9 +338,6 @@ function player_lock()
  function isclockwise(v1,v2)
   return -v1.x*v2.y+v1.y*v2.x>0
  end
- function isinrange(v,r)
-  return abs(v.x)<r and abs(v.y)<r and v.x^2+v.y^2<=r^2
- end
  local range=80
  local spread=0.12
  local sec_end={
@@ -347,16 +348,16 @@ function player_lock()
   x=sin(player.rot+spread)*range,
   y=-cos(player.rot+spread)*range
  }
- if not player.locked then
+ if not player_locked then
 	 for enemy in all(enemies) do
 	  local relpoint={
 	   x=enemy.x-player.x,
 	   y=enemy.y-player.y
 	  }
 	  if (not isclockwise(sec_start,relpoint)) and isclockwise(sec_end,relpoint) and isinrange(relpoint,range) then
-	  	player.lockx=enemy.x
-	  	player.locky=enemy.y
-	  	player.locked=true
+	  	lockx=enemy.x
+	  	locky=enemy.y
+	  	player_locked=true
 	  	return
 	  end
 	 end
@@ -364,7 +365,7 @@ function player_lock()
 end
 
 function player_shoot()
- add(player.bullets, {
+ add(player_bullets, {
   rot=player.rot,
   x=player.x,
   y=player.y
@@ -372,27 +373,28 @@ function player_shoot()
 end
  
 function player_damage(d)
- if player.shield>=d then
-  player.shield-=d
+ if shield>=d then
+  shield-=d
  else
-  d-=ceil(player.shield)
-  player.shield=0
-  player.health-=d
-  if player.health <=0 then
-	  particle_create(player.x,player.y,6,9,19)
-	  particle_create(player.x,player.y,4,9,19)
-	  particle_create(player.x,player.y,9,9,19)
-	  particle_create(player.x,player.y,0,9,4)
+  d-=ceil(shield)
+  shield=0
+  health-=d
+  if health <=0 then
+   local x,y = player.x,player.y
+	  particle_create(x,y,6,9,19)
+	  particle_create(x,y,4,9,19)
+	  particle_create(x,y,9,9,19)
+	  particle_create(x,y,0,9,4)
    sfx(6)
   end
  end
- if not player.shield_fullcharge then
-	 if player.shield <= 0 then
-	  player.shield_nocharge=player.shield_nocharge_amt*player.shield_penalty
-	  player.shield_penalty=min(player.shield_penalty+1,player.shield_penalty_max)
-	  player.shield_fullcharge=true
+ if not shield_fullcharge then
+	 if shield <= 0 then
+	  shield_nocharge=shield_nocharge_amt*shield_penalty
+	  shield_penalty=min(shield_penalty+1,shield_penalty_max)
+	  shield_fullcharge=true
 	 else
-	  player.shield_nocharge=player.shield_nocharge_amt
+	  shield_nocharge=shield_nocharge_amt
 	 end
  end
 end
@@ -400,12 +402,13 @@ end
 function enemy_damage(e,d)
  e.health-=d
  if e.health <= 0 then
-  particle_create(e.x,e.y,6,e.r,e.r*2)
-  particle_create(e.x,e.y,4,e.r,e.r*2)
-  particle_create(e.x,e.y,9,e.r,e.r*2)
-  particle_create(e.x,e.y,0,e.r,e.r)
+  local x,y,r=e.x,e.y,e.r
+  particle_create(x,y,6,r,r*2)
+  particle_create(x,y,4,r,r*2)
+  particle_create(x,y,9,r,r*2)
+  particle_create(x,y,0,r,r)
   del(enemies,e)
-  player.locked=false--cope
+  player_locked=false--cope
   sfx(6)
  end
 end
@@ -419,9 +422,23 @@ function particle_create(x,y,col,amt,size)
 end
 
 function player_add_special(a)
- player.special_1=min(100,player.special_1+a)
- player.special_2=min(100,player.special_2+a)
- player.special_3=min(100,player.special_3+a)
+ function add_each(a,c,cm,q,qm)
+  local diff=cm-c
+  if diff>=a then
+   c+=a
+  else
+   if q<qm then
+   	c=a-diff
+   	q=q+1
+   else
+    c=cm
+   end
+  end
+  return {c,q}
+ end
+ special_1_charge,special_1=unpack(add_each(a,special_1_charge,special_1_charge_max,special_1,special_1_max))
+ special_2_charge,special_2=unpack(add_each(a,special_2_charge,special_2_charge_max,special_2,special_2_max))
+ special_3_charge,special_3=unpack(add_each(a,special_3_charge,special_3_charge_max,special_3,special_3_max))
 end
 -->8
 -- input
@@ -485,26 +502,26 @@ function player_draw()
   offy=-1
  end
  spr(s,player.x-4+offx, player.y-2+offy, 1,1)
- 
  pal()
+
  -- health
- rectfill(player.x-player.h,player.y-player.h,player.x-player.h+player.health\5,player.y-player.h-0,11)
- if player.shield >0 then
- 	rectfill(player.x-player.h+(player.health_max\5),player.y-player.h,player.x-player.h+(player.health_max\5)+player.shield\5,player.y-player.h-0,12)
+ rectfill(player.x-8,player.y-8,player.x-8+health\5,player.y-8-0,11)
+ if shield >0 then
+ 	rectfill(player.x-8+(health_max\5),player.y-8,player.x-8+(health_max\5)+shield\5,player.y-8-0,12)
  end
 end
 
 function player_color()
- if player.boost_invul_cur > 0 then
+ if boost_invul_cur > 0 then
   return 8
- elseif input_boost() and player.energy>0 then
+ elseif input_boost() and energy>0 then
   return 9
  end
  return 15
 end
 
 function ui_draw()
- local energy = player.energy
+ local energy = energy
  local height = 111
  local l = 3
  local l_small = 1
@@ -528,36 +545,22 @@ function ui_draw()
  end
  
  -- special
- local s1 = 3 --todo
- local s2 = 3 --todo
- local s3 = 3 --todo
- rectfill(
-  cam_x+11,
-  cam_y+116,
-  cam_x+11+player.special_1_charge,
-  cam_y+123,
-  12
+ local s1,s2,s3=special_1+3,special_2+3,special_3+3 
+ function special_draw(x,col,l,pic,num)
+  local x8,cy=cam_x+x+8,cam_y+116
+  rectfill(
+  x8,
+  cy,
+  x8+flr(l+0.5),
+  cy+7,
+  col
  )
- spr(19,cam_x+3,cam_y+116,1,1)
- spr(s1,cam_x+11,cam_y+116,1,1)
- rectfill(
-  cam_x+43,
-  cam_y+116,
-  cam_x+43+player.special_2_charge,
-  cam_y+123,
-  11
- )
- spr(20,cam_x+35,cam_y+116,1,1)
- spr(s2,cam_x+43,cam_y+116,1,1)
- rectfill(
-  cam_x+88,
-  cam_y+116,
-  cam_x+88+player.special_3_charge,
-  cam_y+123,
-  8
- )
- spr(21,cam_x+80,cam_y+116,1,1)
- spr(s3,cam_x+88,cam_y+116,1,1)
+ spr(pic,cam_x+x,cy,1,1)
+ spr(num,x8,cy,1,1)
+ end
+ special_draw( 0,12,special_1_charge,19,s1)
+ special_draw(33,11,special_2_charge,20,s2)
+ special_draw(76, 8,special_3_charge,21,s3)
 end
 
 function enemy_draw()
@@ -568,7 +571,7 @@ function enemy_draw()
 end
 
 function player_bullet_draw()
- for bullet in all(player.bullets) do
+ for bullet in all(player_bullets) do
   circfill(bullet.x, bullet.y,1,7)
  end
 end
