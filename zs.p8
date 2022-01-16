@@ -27,7 +27,7 @@ function _init()
 	boost_nocharge=0
 	boost_nocharge_amt=30
 	boost_hold=false
-	boost_invul=15
+	boost_invul=20
 	boost_invul_cur=0
 	boost_burst=8.5
 	boost_amt=0.15
@@ -56,9 +56,6 @@ function _init()
 	special_1_charge_max=20
 	special_2_charge_max=30
 	special_3_charge_max=40
-	special_1=0
-	special_2=0
-	special_3=0
 	special_1_max=3
 	special_2_max=2
 	special_3_max=1
@@ -78,15 +75,16 @@ function _init()
 
  boss_attack={
   {atk="lazer",
-  dur=250,
+  dur=330,
   init=function (self)
-   self.dur=250
+   self.dur=330
   end,
   draw=
 	  function (self)
 	   local d = self.dur
-	   if d<180 then
-	    local s00,s25,s50,s75=sin(d/180),sin(d/180+0.25),sin(d/180+0.5),sin(d/180+0.75)
+	   if d<270 then
+	    local spd = 270
+	    local s00,s25,s50,s75=sin(d/spd),sin(d/spd+0.25),sin(d/spd+0.5),sin(d/spd+0.75)
 	    for i=-3,3 do
 	     local c=8
 	     if i<2 and i>-2 then c=7 end
@@ -106,9 +104,10 @@ function _init()
 	  function (self)
 	   local d = self.dur
 	  	lazer_cd=max(lazer_cd-1,0)
-	   if d<180 then
-	    local a1,b1=sin(d/180)-sin(d/180+0.5),-cos(d/180)+cos(d/180+0.5)
-	    local a2,b2=sin(d/180+0.25)-sin(d/180+0.75),-cos(d/180+0.25)+cos(d/180+0.75)
+	  	local spd = 270
+	   if d<spd then
+	    local a1,b1=sin(d/spd)-sin(d/spd+0.5),-cos(d/spd)+cos(d/spd+0.5)
+	    local a2,b2=sin(d/spd+0.25)-sin(d/spd+0.75),-cos(d/spd+0.25)+cos(d/spd+0.75)
 	    
 	    if (abs(a1*player.x+b1*player.y)/sqrt(a1^2+b1^2) <= 5
 	    or abs(a2*player.x+b2*player.y)/sqrt(a2^2+b2^2) <= 5)
@@ -204,10 +203,10 @@ function _init()
   y=0,
   r=10,
   t="boss",
-  health=2500,
-  health_max=2500,
-  stage=3,
-  stage_max=3,
+  health=2000,
+  health_max=2000,
+  stage=4,
+  stage_max=4,
   attack={}
  }
  enemies={
@@ -391,24 +390,24 @@ function player_update()
   shoot_delay_cur=0
   if special_hold_dur > 21 then
    if special_hold_dur<41 then
-	   if special_1 > 0 then
-	    special_1-=1
+	   if special_1_charge >= special_1_charge_max then
+	    special_1_charge-=special_1_charge_max
 	    special_1_create()
 	   else
 	    sfx(11,2,3,0)
 	   end
 	  elseif special_hold_dur<61 then
-	   if special_2 > 0 then
-	    special_2-=1
+	   if special_2_charge >= special_2_charge_max then
+	    special_2_charge-=special_2_charge
 	    special_2_create()
 	    -- sfx(12,3,0,14)
 	   else
 	    sfx(11,2,2,0)
 	   end
 	  else
-	   if special_3>0 then
+	   if special_3_charge >= special_3_charge_max then
 	   special_3_activate()
-	   special_3-=1
+    special_3_charge-=special_3_charge
 	   sfx(13)
 	  	end
 	  end
@@ -676,23 +675,9 @@ function particle_precise_create(x,y,col,size)
 end
 
 function player_add_special(a)
- function add_each(a,c,cm,q,qm)
-  local diff=cm-c
-  if diff>=a then
-   c+=a
-  else
-   if q<qm then
-   	c=a-diff
-   	q=q+1
-   else
-    c=cm
-   end
-  end
-  return {c,q}
- end
- special_1_charge,special_1=unpack(add_each(a,special_1_charge,special_1_charge_max,special_1,special_1_max))
- special_2_charge,special_2=unpack(add_each(a/2,special_2_charge,special_2_charge_max,special_2,special_2_max))
- special_3_charge,special_3=unpack(add_each(a/2,special_3_charge,special_3_charge_max,special_3,special_3_max))
+ special_1_charge=min(a+special_1_charge,special_1_charge_max*special_1_max)
+ special_2_charge=min(a/2+special_2_charge,special_2_charge_max*special_2_max)
+ special_3_charge=min(a/2+special_3_charge,special_3_charge_max*special_3_max)
 end
 
 function enemy_update()
@@ -843,8 +828,10 @@ function ui_draw()
  end
  
  -- special
- local s1,s2,s3=special_1+3,special_2+3,special_3+3 
- function special_draw(x,col,l,pic,num)
+ local s1,s2,s3=special_1_charge\special_1_charge_max+3,special_2_charge\special_2_charge_max+3,special_3_charge\special_3_charge_max+3 
+ function special_draw(x,col,c,cm,qm,pic,num)
+  local l = c%cm
+  if (qm*cm == c) l=cm
   local x8,cy=cam_x+x+8,cam_y+116
   if l>0 then
 	  rectfill(
@@ -858,9 +845,9 @@ function ui_draw()
 	 spr(pic,cam_x+x,cy,1,1)
 	 spr(num,x8,cy,1,1)
  end
- special_draw( 0,12,special_1_charge,19,s1)
- special_draw(33,11,special_2_charge,20,s2)
- special_draw(76, 8,special_3_charge,21,s3)
+ special_draw( 0,12,special_1_charge,special_1_charge_max,special_1_max,19,s1)
+ special_draw(33,11,special_2_charge,special_2_charge_max,special_2_max,20,s2)
+ special_draw(76, 8,special_3_charge,special_3_charge_max,special_3_max,21,s3)
 end
 
 function enemy_draw()
