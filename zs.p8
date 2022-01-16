@@ -11,14 +11,13 @@ function _init()
  player={
   rot=0,
   x=0,
-  y=0,
+  y=50,
   dx=0,
   dy=0,
  }
  -- player
 	drot=0.0165
-	lockx=59
-	locky=59
+	lock_e={x=0,y=0}
 	player_locked=false
 	player_shooting=false
 	shoot_delay=4 
@@ -57,9 +56,9 @@ function _init()
 	special_1_charge_max=20
 	special_2_charge_max=30
 	special_3_charge_max=40
-	special_1=1
-	special_2=1
-	special_3=1
+	special_1=0
+	special_2=0
+	special_3=0
 	special_1_max=3
 	special_2_max=2
 	special_3_max=2
@@ -68,29 +67,150 @@ function _init()
 	special_2s={}
 	special_3s={}
 
- 
+ boss_stall={
+  atk="stall",
+  dur=180,
+  init=function (_) dur=180 end,
+  draw=function (_) end,
+  hit =function (_) end
+ }
+
+ boss_attack={
+  {atk="lazer",
+  dur=250,
+  init=function (self)
+   self.dur=250
+  end,
+  draw=
+	  function (self)
+	   local d = self.dur
+	   if d<180 then
+	    local s00,s25,s50,s75=sin(d/180),sin(d/180+0.25),sin(d/180+0.5),sin(d/180+0.75)
+	    for i=-3,3 do
+	     local c=8
+	     if i<2 and i>-2 then c=7 end
+		    line(s00*(181)+s75*i, -s75*181+s00*i,s50*181-s25*i,-s25*181-s50*i,c)
+		    line(s25*181+s00*i,-s00*181+s25*i,s75*181-s50*i,-s50*181-s75*i,c)
+	    end
+	   else
+	    fillp(▒)
+	    for i=-3,3 do
+		    line(181,0-i,-181,0-i,8)
+		    line(0-i,181,0-i,-181,8)
+	    end
+	    fillp()
+	   end
+	  end,
+  hit=
+	  function (self)
+	   local d = self.dur
+	   if d<180 then
+	    local a1,b1=sin(d/180)-sin(d/180+0.5),-cos(d/180)+cos(d/180+0.5)
+	    local a2,b2=sin(d/180+0.25)-sin(d/180+0.75),-cos(d/180+0.25)+cos(d/180+0.75)
+	    
+	    if (abs(a1*player.x+b1*player.y)/sqrt(a1^2+b1^2) <= 6
+	    or abs(a2*player.x+b2*player.y)/sqrt(a2^2+b2^2) <= 6)
+	    and boost_invul_cur<=0 then
+						player_damage(10)
+						boost_invul_cur+=10
+	    end	   
+	   end
+	  end
+  },
+  {atk="spawn enemies",
+  dur=250,
+  init=function (self)
+   self.dur=flr(rnd(250))
+  end,
+  draw=function (_) end,
+  hit=
+	  function (self)
+	   if self.dur%50==0 then
+	    local rnd_r=rnd(4)+5
+ 				add(enemies,{
+				  x=0,
+				  y=0,
+				  dx=0,
+				  dy=0,
+				  r=rnd_r,
+				  t="chase",
+				  health=12+rnd_r,
+				  health_max=12+rnd_r,
+				 })
+				end
+	  end
+  },
+  {atk="sector",
+  dur=180,
+  dur_max=180,
+  sectors={},
+  init=function (self)
+   self.sectors={}
+   self.dur=self.dur_max
+   for i=0,4 do
+    add(self.sectors,rnd())
+   end
+  end,
+  draw=
+	  function (self)
+	   if self.dur<20 then
+	    for sec in all(self.sectors) do
+		    i=sec
+		    while i<sec+0.125 do
+		     local c = 8
+		     if (i*10000%5<1) c=7
+			    line(sin(i)*181,-cos(i)*181,0,0,c)
+		     i+=0.005
+		    end
+	    end
+	   else
+	    fillp(▒)
+	    for sec in all(self.sectors) do
+		    i=sec
+		    while i<sec+0.125 do
+			    line(sin(i)*181,-cos(i)*181,0,0,8)
+		     i+=0.01
+		    end
+	    end
+	    fillp()
+	   end
+	  end,
+	  hit=
+	  function (self)
+	   if self.dur==15 then
+					for sec in all(self.sectors) do
+					 local sec_end={
+					  x=sin(sec),
+					  y=-cos(sec)
+					 }
+					 local sec_start={
+					  x=sin(sec+0.125),
+					  y=-cos(sec+0.125)
+					 }
+						if (not isclockwise(sec_start,player)) and isclockwise(sec_end,player)
+						and boost_invul_cur<=0 then
+							player_damage(30)
+							boost_invul_cur+=5
+							return
+					 end
+					end
+	   end
+	  end
+  },
+ }
+ boss_attack[3].init(boss_attack[3])
+ boss={
+  x=0,
+  y=0,
+  r=10,
+  t="boss",
+  health=2500,
+  health_max=2500,
+  stage=5,
+  attack={}
+ }
  enemies={
-  {
-   x=59,
-   y=59,
-   r=4,
-   health=50,
-   health_max=100
-  },
-  {
-   x=128,
-   y=128,
-   r=5,
-   health=100,
-   health_max=100
-  },
-  {
-   x=-128,
-   y=-128,
-   r=5,
-   health=200,
-   health_max=200
-  }
+  boss
  }
  
  arena_cd=0
@@ -113,6 +233,7 @@ end
 
 function _update60()
  player_update()
+ enemy_update()
  
  --camera
  cam_x=player.x-64+(8/2)
@@ -133,11 +254,9 @@ function _draw()
  
  arena_draw()
  particle_draw()
- player_draw()
  enemy_draw()
  player_bullet_draw()
  player_draw()
- enemy_bullet_draw()
  _draw_debugger()
  ui_draw()
 end
@@ -153,7 +272,7 @@ function player_update()
  if player_locked then
 	 player.dy*=friction_locked
 	 player.dx*=friction_locked
-  player.rot=0.25+atan2(player.x-lockx, player.y-locky)
+  player.rot=0.25+atan2(player.x-lock_e.x, player.y-lock_e.y)
  else
  	player.dy*=friction
  	player.dx*=friction
@@ -360,9 +479,9 @@ function player_update()
 		 end
 	 end
 	end
- projectile_update(player_bullets, 1, 5.5, 5, 0, 2, 0.7)
- projectile_update(special_1s,     4, 1.5, 5, 9, 5, 1)
- projectile_update(special_3s,    24,   0, 5, 9, 100, 10)
+ projectile_update(player_bullets, 1, 5.5, 5, 0, 2, 0.4)
+ projectile_update(special_1s,     4, 1.5, 5, 9, 5, 0.4)
+ projectile_update(special_3s,    42,   0, 5, 9, 85, 2)
 
  
  --misc
@@ -397,7 +516,12 @@ function player_update()
  shield_penalty=max(shield_penalty-0.001,shield_penalty_min)
 
 
+ _debugger_print("stage :"..boss.stage)
 
+for atk in all(boss.attack) do
+ _debugger_print("atk :"..atk.atk)
+end
+-- _debugger_print("ba:"..boss_attack[1].dur)
 -- _debugger_print("in arena:"..tostr(isinrange(player, 181)))
 -- _debugger_print("x:"..player.x)
 --	_debugger_print("y:"..player.y)
@@ -425,10 +549,10 @@ function isinrange(v,r)
  local midstep = r^2-v.y^2
  return abs(v.x)<r and abs(v.y)<r and midstep>0 and midstep-v.x^2>=0
 end
+function isclockwise(v1,v2)
+ return -v1.x*v2.y+v1.y*v2.x>0
+end
 function player_lock()
- function isclockwise(v1,v2)
-  return -v1.x*v2.y+v1.y*v2.x>0
- end
  local range=80
  local spread=0.12
  local sec_end={
@@ -446,8 +570,7 @@ function player_lock()
 	   y=enemy.y-player.y
 	  }
 	  if (not isclockwise(sec_start,relpoint)) and isclockwise(sec_end,relpoint) and isinrange(relpoint,range) then
-	  	lockx=enemy.x
-	  	locky=enemy.y
+	  	lock_e=enemy
 	  	player_locked=true
 	  	return
 	  end
@@ -494,6 +617,7 @@ function special_3_activate()
 end
 
 function player_damage(d)
+ sfx(14)
  if shield>=d then
   shield-=d
  else
@@ -501,12 +625,13 @@ function player_damage(d)
   shield=0
   health-=d
   if health <=0 then
-   local x,y = player.x,player.y
-	  particle_create(x,y,6,9,19)
-	  particle_create(x,y,4,9,19)
-	  particle_create(x,y,9,9,19)
-	  particle_create(x,y,0,9,4)
+--   local x,y = player.x,player.y
+--	  particle_create(x,y,6,9,19)
+--	  particle_create(x,y,4,9,19)
+--	  particle_create(x,y,9,9,19)
+--	  particle_create(x,y,0,9,4)
    sfx(6)
+   _init()
   end
  end
  if not shield_fullcharge then
@@ -564,6 +689,43 @@ function player_add_special(a)
  special_1_charge,special_1=unpack(add_each(a,special_1_charge,special_1_charge_max,special_1,special_1_max))
  special_2_charge,special_2=unpack(add_each(a,special_2_charge,special_2_charge_max,special_2,special_2_max))
  special_3_charge,special_3=unpack(add_each(a,special_3_charge,special_3_charge_max,special_3,special_3_max))
+end
+
+function enemy_update()
+ if 5/boss.health_max*boss.health < boss.stage then
+  add(boss.attack,boss_stall)
+  boss.stage-=1
+ end
+ for atk in all(boss.attack) do
+	 atk.hit(atk)
+	 atk.dur-=1
+	 if atk.dur < 0 then
+	  local next_atk = rnd(3)\1+1
+	  del(boss.attack, atk)
+	  local t={}
+	  for key, value in pairs(boss_attack[next_atk]) do
+  		t[key] = value
+			end
+			t.init(t)
+	  add(boss.attack, t)
+	 end
+	end
+ for e in all(enemies) do
+  if e.t=="chase" then
+ 	 e.dx*=0.975--friction
+ 	 e.dy*=0.975
+ 	 local rx,ry=e.x-player.x,e.y-player.y
+ 	 local angle=atan2(rx,ry)
+ 	 e.dx+=-cos(angle)*(0.1-e.r*0.01)
+ 	 e.dy+=-sin(angle)*(0.1-e.r*0.01)
+   e.x+=e.dx
+   e.y+=e.dy
+   if isinrange({x=rx,y=ry},e.r+3) then
+	   del(enemies, e) 
+	   player_damage(e.r*3)
+	  end
+  end
+ end
 end
 -->8
 -- input
@@ -699,10 +861,27 @@ end
 
 function enemy_draw()
  for enemy in all(enemies) do
-  circfill(enemy.x, enemy.y,enemy.r,4)
-  rect(enemy.x-enemy.r,enemy.y-enemy.r-2,enemy.x+ceil((enemy.r*2)/enemy.health_max*enemy.health)-enemy.r,enemy.y-enemy.r-2,11)
+  local c=8
+  if enemy.t=="chase" then
+  	rect(enemy.x-enemy.r,enemy.y-enemy.r-2,enemy.x+ceil((enemy.r*2)/enemy.health_max*enemy.health)-enemy.r,enemy.y-enemy.r-2,11)
+  else
+  	rectfill(cam_x+4,
+  	cam_y,
+  	cam_x+ceil(120/enemy.health_max*enemy.health),
+  	cam_y+3,8)
+  	c=2
+  end
+  circfill(enemy.x, enemy.y,enemy.r,c)
+  circfill(enemy.x, enemy.y,enemy.r-1,0)
+
  end
+ 
+ for atk in all(boss.attack) do
+  atk.draw(atk)
+ end
+
 end
+
 
 function player_bullet_draw()
  function draw(arr,size)
@@ -727,9 +906,6 @@ function player_bullet_draw()
  for s in all(special_2s) do
   spr(128,s.x-16, s.y-16,4,4)
  end
-end
-
-function enemy_bullet_draw()
 end
 
 function arena_draw()
@@ -790,29 +966,13 @@ end
 -->8
 --[[ todo
 
-implement synchro burst?
-- maybe red special can activate
-  burst instead of charging it
-  probably make long charge time
-  like 5-10s
-  
--make sprite animation for
-charging special
-
-finish up the special
-- think of specials
- - slow mo?
- - laser?
- 
-- green make a lens that amps dmg
-- make icon sprites
-
 
 boss?
-- think of attack patterns
 -fillp
+- sector attack
+- chasing enemy spawn
+- rotating lasers
 
--background looknicer?
 
 ]]
 __gfx__
@@ -1074,6 +1234,7 @@ d601000012620106200e6200d6200c6200b6200a6200962007620066200662005620046200462003
 9106000038751337512e751277511d751137510a75104751007510075100751027510075100751007010070100701007010070103701007010070100701007010070100701000010000100001000010000100001
 005600001402113021110110f0110e0110c0110b0110a0110a0110901108011070110701102011020110201102011020110201102011020110201102011020110201102011020110201102011020110001100011
 0302000032651346713667137661376513665133641326412f6412a63126631226311c6311862115621136210f6210d6210b6210a621086210762106611056110461103611026110261101611006110061100611
+4a0200000ff5019f5022f502af5019f5013f500ef500cf500bf500cf500df500af5009f5011600106000e6000c600003000030000000000000000000000000000000000000000000000000000000000000000000
 __music__
 00 08090a44
 
