@@ -77,9 +77,9 @@ function _init()
 
  boss_attack={
   {atk="lazer",
-  dur=410,
+  dur=660,
   init=function (self)
-   self.dur=410
+   self.dur=660
   end,
   draw=
 	  function (self)
