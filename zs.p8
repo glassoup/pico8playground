@@ -16,26 +16,28 @@ function _init()
   dy=0,
  }
  -- player
-	drot=0.0165
-	lock_e={x=0,y=0}
+	drot=0.05
+	nill_enemy={x=1,y=1,r=0}
+	lock_e=nill_enemy
 	player_locked=false
 	player_shooting=false
 	shoot_delay=4 
 	shoot_delay_cur=0
-	friction=0.9
-	friction_locked=0.82
+	friction=0.88
+	friction_locked=0.78
 	boost_nocharge=0
 	boost_nocharge_amt=30
 	boost_hold=false
 	boost_invul=20
 	boost_invul_cur=0
-	boost_burst=8.5
+	boost_burst=5
+	boost_burst_locked=8
 	boost_amt=0.15
 	boost_cur=0
-	boost_max=0.8
+	boost_max=0.7
 	thrust_amt=0.1
 	thrust_cur=0
-	thrust_max=0.5
+	thrust_max=0.4
 	thrust_on=false
 	energy=100
 	energy_max=100
@@ -75,21 +77,21 @@ function _init()
 
  boss_attack={
   {atk="lazer",
-  dur=330,
+  dur=410,
   init=function (self)
-   self.dur=330
+   self.dur=410
   end,
   draw=
 	  function (self)
 	   local d = self.dur
-	   if d<270 then
-	    local spd = 270
+	   local spd = 600
+	   if d<spd then
 	    local s00,s25,s50,s75=sin(d/spd),sin(d/spd+0.25),sin(d/spd+0.5),sin(d/spd+0.75)
 	    for i=-3,3 do
 	     local c=8
 	     if i<2 and i>-2 then c=7 end
 		    line(s00*(181)+s75*i, -s75*181+s00*i,s50*181-s25*i,-s25*181-s50*i,c)
-		    line(s25*181+s00*i,-s00*181+s25*i,s75*181-s50*i,-s50*181-s75*i,c)
+		    line(s25*181+s00*i,s00*181-s25*i,s75*181-s50*i,s50*181+s75*i,c)
 	    end
 	   else
 	    fillp(▒)
@@ -104,16 +106,17 @@ function _init()
 	  function (self)
 	   local d = self.dur
 	  	lazer_cd=max(lazer_cd-1,0)
-	  	local spd = 270
+	  	local spd = 600
 	   if d<spd then
-	    local a1,b1=sin(d/spd)-sin(d/spd+0.5),-cos(d/spd)+cos(d/spd+0.5)
-	    local a2,b2=sin(d/spd+0.25)-sin(d/spd+0.75),-cos(d/spd+0.25)+cos(d/spd+0.75)
+	    local a1,b1=sin(d/spd)-sin(d/spd+0.5),cos(d/spd)-cos(d/spd+0.5)
+	    local a2,b2=sin(d/spd+0.25)-cos(d/spd),-sin(d/spd)+cos(d/spd+0.75)
 	    
 	    if (abs(a1*player.x+b1*player.y)/sqrt(a1^2+b1^2) <= 5
 	    or abs(a2*player.x+b2*player.y)/sqrt(a2^2+b2^2) <= 5)
-					and lazer_cd<=0 then
-						player_damage(15)
-						lazer_cd=10
+					and lazer_cd<=0
+					and isinrange(player, 181) then
+						player_damage(5)
+						lazer_cd=5
 	    end	   
 	   end
 	  end
@@ -265,17 +268,27 @@ end
 
 function player_update()
  local rot_target=input_rot_target()
- local rot_diff=(rot_target-player.rot+0.5)%1-0.5	
+ local rot_diff=(rot_target-player.rot+0.5)%1-0.5
+ local rot_diff_abs=abs(rot_diff)
  local player_particlex=player.x-sin(player.rot)*5
  local player_particley=player.y+cos(player.rot)*5
+ local b_b = boost_burst
 
  if player_locked then
 	 player.dy*=friction_locked
 	 player.dx*=friction_locked
   player.rot=0.25+atan2(player.x-lock_e.x, player.y-lock_e.y)
+  b_b = boost_burst_locked
  else
- 	player.dy*=friction
- 	player.dx*=friction
+  -- increase fiction during sharp turn
+  if rot_diff_abs>0.28 and input_moving() then
+	 	player.dy*=friction-0.25
+	 	player.dx*=friction-0.25
+  else
+	 	player.dy*=friction
+	 	player.dx*=friction
+ 	end
+ 	
  end
  
  -- boosting
@@ -287,8 +300,8 @@ function player_update()
    boost_hold=true
   else
    if energy >= 20 then
-    player.dx=sin(rot_target)*boost_burst
-    player.dy=cos(rot_target)*boost_burst
+    player.dx=sin(rot_target)*b_b
+    player.dy=cos(rot_target)*b_b
     boost_hold=false
     boost_invul_cur=boost_invul
     sfx(1)
@@ -307,7 +320,7 @@ function player_update()
  if input_moving() then
   -- rotation
   if not player_locked then
-   if abs(rot_diff) < drot then
+   if rot_diff_abs < drot then
 		  player.rot=rot_target
 		 elseif rot_diff > 0 then
 		  player.rot+=drot
@@ -318,7 +331,7 @@ function player_update()
 	 end
 	   
 	 -- thrust
-  if (abs(rot_diff) < 0.175) or player_locked then
+  if (rot_diff_abs < 0.175) or player_locked then
    local dir = player.rot
    if (player_locked) dir=rot_target
     
@@ -365,7 +378,9 @@ function player_update()
   end
   if player_shooting then
    if energy>=2 then
-    player_lock()
+    if player_locked!=true then
+     player_lock()
+    end
     shoot_delay_cur+=1
 	   shoot_delay_cur=shoot_delay_cur%shoot_delay  
     if shoot_delay_cur==0 then
@@ -375,7 +390,9 @@ function player_update()
     end
    end
   else
-   player_lock()
+   if player_locked!=true then
+   	player_lock()
+   end
    -- special
    special_hold_dur+=0.25
    if special_hold_dur<41 then
@@ -552,7 +569,17 @@ end
 function isclockwise(v1,v2)
  return -v1.x*v2.y+v1.y*v2.x>0
 end
+
 function player_lock()
+	lock_e=get_lock()
+	if lock_e.r!=0 then
+		player_locked=true
+ else
+  player_locked=false	
+	end
+end
+
+function get_lock()
  local range=80
  local spread=0.125
  local sec_end={
@@ -570,12 +597,11 @@ function player_lock()
 	   y=enemy.y-player.y
 	  }
 	  if (not isclockwise(sec_start,relpoint)) and isclockwise(sec_end,relpoint) and isinrange(relpoint,range) then
-	  	lock_e=enemy
-	  	player_locked=true
-	  	return
+  	return enemy
 	  end
 	 end
 	end
+	return nill_enemy
 end
 
 function player_shoot()
@@ -657,6 +683,7 @@ function enemy_damage(e,d)
   particle_create(x,y,9,r,r*2)
   particle_create(x,y,0,r,r)
   del(enemies,e)
+  lock_e=nill_enemy
   player_locked=false--cope
   sfx(6)
  end
@@ -792,6 +819,18 @@ function player_draw()
  elseif special_hold_dur < 61 then
   spr(128,player.x-16, player.y-16,4,4)
  end
+ 
+ -- lockon
+ local e,c=get_lock(),11
+ if player_locked then
+  c=8
+  e=lock_e
+ end
+
+ if lock_e.r>0 then
+  rect(e.x-e.r,e.y-e.r,e.x+e.r,e.y+e.r,c)
+ end
+ 
 end
 
 function player_color()
@@ -964,6 +1003,15 @@ boss?
 - chasing enemy spawn
 - rotating lasers
 
+-better lock on system
+-- lingering lock on
+if in range, and tap again, lock on to same target
+- so won't turn around
+
+
+slow ship speed
+lock on indicator
+friction when trusting/boosting
 
 ]]
 __gfx__
